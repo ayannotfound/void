@@ -1,0 +1,240 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    background: #000000;
+    color: #ffffff;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+#terminal {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow: hidden;
+}
+
+#output {
+    flex: 1;
+    min-height: 100px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 5px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-right: 2px;
+}
+
+#output::-webkit-scrollbar {
+    display: none;
+}
+
+#input-line {
+    display: flex;
+    align-items: center;
+    position: relative;
+    min-height: 1.4em;
+}
+
+#prompt {
+    color: #666666;
+    margin-right: 8px;
+    user-select: none;
+}
+
+#input {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+    flex-grow: 1;
+    caret-color: transparent;
+}
+
+#cursor {
+    color: #ffffff;
+    animation: blink 1.5s infinite;
+    position: absolute;
+    top: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@keyframes blink {
+    0%, 60% { opacity: 1; }
+    61%, 100% { opacity: 0; }
+}
+
+.user-input {
+    color: #ffffff;
+    margin-bottom: 2px;
+    font-weight: normal;
+    line-height: 1.3;
+}
+
+.user-input.typing {
+    background: transparent; /* No background on container */
+}
+
+.user-input .typing-text {
+    display: inline; /* Apply filter only to text */
+}
+
+.user-input.typing::after {
+    content: '▍';
+    color: #ffffff;
+    animation: blink 1.5s infinite;
+    margin-left: 2px;
+}
+
+.response {
+    color: #888888;
+    margin-bottom: 8px;
+    margin-left: 20px;
+    line-height: 1.3;
+    opacity: 1;
+}
+
+.response.typing {
+    background: transparent; /* No background on container */
+}
+
+.response .typing-text {
+    display: inline; /* Apply filter only to text */
+}
+
+.response.typing::after {
+    content: '▍';
+    color: #ffffff;
+    animation: blink 1.5s infinite;
+    margin-left: 2px;
+}
+
+.response.fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease-out;
+}
+
+.boot-message {
+    color: #00ff00;
+    margin-bottom: 3px;
+    font-family: inherit;
+    line-height: 1.3;
+    animation: fadeIn 0.3s ease-in forwards;
+    opacity: 0;
+}
+
+.boot-alert {
+    color: #ff0000;
+    margin-bottom: 3px;
+    line-height: 1.3;
+    animation: fadeIn 0.3s ease-in forwards;
+    opacity: 0;
+}
+
+.boot-alert .typing-text {
+    filter: url(#static-noise);
+    display: inline;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.hidden {
+    display: none;
+}
+
+#log {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000;
+    color: #666666;
+    padding: 20px;
+    overflow-y: auto;
+    font-size: 12px;
+    z-index: 1000;
+}
+
+.log-entry {
+    margin-bottom: 8px;
+    word-wrap: break-word;
+}
+
+.log-timestamp {
+    color: #333333;
+    margin-right: 8px;
+}
+
+.log-input {
+    color: #ffffff;
+}
+
+.log-output {
+    color: #888888;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    body {
+        font-size: 12px;
+    }
+    
+    #terminal {
+        padding: 10px;
+        padding-bottom: 5px;
+    }
+    
+    #output {
+        margin-bottom: 5px;
+    }
+    
+    .response {
+        margin-left: 10px;
+        margin-bottom: 5px;
+    }
+    
+    .user-input .typing-text, .response .typing-text {
+        filter: none; /* Disable filter on mobile for performance */
+    }
+}
+
+/* Prevent text selection on mobile */
+#terminal, #input-line, #prompt, #cursor {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Allow text selection only for input */
+#input {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}

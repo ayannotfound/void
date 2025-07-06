@@ -28,7 +28,7 @@ const config = {
     API_TIMEOUT_MS: 5000, // Increased for stability
     MAX_RETRIES: 0,
     MIN_RESPONSE_LENGTH: 5,
-    MAX_RESPONSE_LENGTH: 500,
+    MAX_RESPONSE_LENGTH: 5000,
     FILTER_COMFORT_WORDS: true
 };
 

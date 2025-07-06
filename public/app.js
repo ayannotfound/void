@@ -16,6 +16,7 @@ class VoidOS {
         this.groqResponder = new GroqResponder();
         this.initialized = false;
         this.startTime = Date.now();
+        this.isTyping = false;
         this.init();
     }
 
@@ -113,9 +114,40 @@ class VoidOS {
                 this.processInput();
             }
         });
-        document.addEventListener('click', () => this.focusInput());
+        
+        // Better mobile support
+        const focusInput = () => {
+            // Prevent focus on log overlay
+            if (!this.logVisible) {
+                this.focusInput();
+            }
+        };
+        
+        document.addEventListener('click', focusInput);
+        document.addEventListener('touchstart', focusInput);
         document.addEventListener('contextmenu', (e) => e.preventDefault());
-        this.input.addEventListener('blur', () => setTimeout(() => this.focusInput(), 100));
+        
+        // Handle virtual keyboard on mobile
+        this.input.addEventListener('blur', () => {
+            // Delay refocus to prevent infinite loop on mobile
+            setTimeout(() => {
+                if (!this.logVisible && document.hasFocus()) {
+                    this.focusInput();
+                }
+            }, 100);
+        });
+        
+        // Prevent zoom on iOS when keyboard appears
+        this.input.addEventListener('focus', () => {
+            // Scroll to bottom when keyboard appears
+            setTimeout(() => this.scrollToBottom(), 300);
+        });
+        
+        // Handle mobile keyboard hide/show
+        window.addEventListener('resize', () => {
+            // Re-scroll to bottom when keyboard changes viewport
+            setTimeout(() => this.scrollToBottom(), 100);
+        });
     }
 
     updatePrompt() {
@@ -135,18 +167,34 @@ class VoidOS {
         const userInput = this.input.value.trim();
         if (!userInput && this.isLoggedIn) return;
         
+        // Block input if system is typing
+        if (this.isTyping) {
+            this.input.value = userInput; // Restore the input
+            // Flash the prompt to indicate system is busy
+            this.prompt.style.opacity = '0.3';
+            setTimeout(() => {
+                if (this.prompt) this.prompt.style.opacity = '1';
+            }, 200);
+            return;
+        }
+        
         // Clear input IMMEDIATELY
         this.input.value = '';
         
         if (!this.isLoggedIn) {
+            this.isTyping = true;
             await this.handleLogin(userInput);
+            this.isTyping = false;
             return;
         }
         
+        this.isTyping = true;
+        
         await this.displayUserInput(userInput);
         
-        if (this.handleSystemCommand(userInput)) {
+        if (await this.handleSystemCommand(userInput)) {
             this.updatePrompt();
+            this.isTyping = false;
             return;
         }
         
@@ -169,21 +217,22 @@ class VoidOS {
         }
         
         this.updatePrompt();
+        this.isTyping = false;
     }
 
-    handleSystemCommand(input) {
+    async handleSystemCommand(input) {
         const cmd = input.toLowerCase();
         switch (cmd) {
             // System commands
             case 'sys.help':
             case 'help':
-                this.showHelp();
+                await this.showHelp();
                 return true;
             case 'sys.status':
-                this.showStatus();
+                await this.showStatus();
                 return true;
             case 'sys.info':
-                this.showSystemInfo();
+                await this.showSystemInfo();
                 return true;
             
             // Session management
@@ -195,40 +244,40 @@ class VoidOS {
                 this.hideLog();
                 return true;
             case 'session.export':
-                this.exportLog();
+                await this.exportLog();
                 return true;
             case 'session.clear':
-                this.clearLog();
+                await this.clearLog();
                 return true;
             
             // AI control
             case 'ai.silence':
                 this.silenceMode = true;
-                this.displayResponse('ai.silence: enabled.');
+                await this.displayResponse('ai.silence: enabled.');
                 return true;
             case 'ai.resume':
                 this.silenceMode = false;
-                this.displayResponse('ai.resume: enabled.');
+                await this.displayResponse('ai.resume: enabled.');
                 return true;
             case 'ai.reset':
-                this.clearConversationHistory();
+                await this.clearConversationHistory();
                 return true;
             
             // User configuration
             case 'config.list':
-                this.showConfig();
+                await this.showConfig();
                 return true;
             case 'config.reset':
-                this.resetConfig();
+                await this.resetConfig();
                 return true;
             
             default:
                 if (cmd.startsWith('config.user ')) {
-                    this.setUser(cmd.substring(12));
+                    await this.setUser(cmd.substring(12));
                     return true;
                 }
                 if (cmd.startsWith('config.host ')) {
-                    this.setHost(cmd.substring(12));
+                    await this.setHost(cmd.substring(12));
                     return true;
                 }
                 return false;
@@ -385,7 +434,7 @@ class VoidOS {
         this.log.scrollTop = this.log.scrollHeight;
     }
 
-    exportLog() {
+    async exportLog() {
         const logData = this.sessionLog.map(entry => {
             const time = new Date(entry.timestamp).toISOString();
             return `[${time}] > ${entry.input}\n${entry.output ? `[${time}] ${entry.output}\n` : ''}`;
@@ -397,42 +446,42 @@ class VoidOS {
         a.download = `you.os-session-${new Date().toISOString().split('T')[0]}.log`;
         a.click();
         URL.revokeObjectURL(url);
-        this.displayResponse('session.export: log file downloaded.');
+        await this.displayResponse('session.export: log file downloaded.');
     }
 
-    clearLog() {
+    async clearLog() {
         this.sessionLog = [];
         if (this.logVisible) this.renderLog();
-        this.displayResponse('session.clear: log entries purged.');
+        await this.displayResponse('session.clear: log entries purged.');
     }
 
-    clearConversationHistory() {
+    async clearConversationHistory() {
         if (this.groqResponder) {
             this.groqResponder.clearHistory();
-            this.displayResponse('ai.reset: conversation history cleared.');
+            await this.displayResponse('ai.reset: conversation history cleared.');
         }
     }
 
-    setUser(username) {
+    async setUser(username) {
         if (!username || username.trim() === '') {
-            this.displayResponse('config.user: error - username cannot be empty.');
+            await this.displayResponse('config.user: error - username cannot be empty.');
             return;
         }
         this.username = username.trim().replace(/"/g, '');
         localStorage.setItem('you_os_username', this.username);
         this.updatePrompt();
-        this.displayResponse(`config.user: set to ${this.username}`);
+        await this.displayResponse(`config.user: set to ${this.username}`);
     }
 
-    setHost(hostname) {
+    async setHost(hostname) {
         if (!hostname || hostname.trim() === '') {
-            this.displayResponse('config.host: error - hostname cannot be empty.');
+            await this.displayResponse('config.host: error - hostname cannot be empty.');
             return;
         }
         this.hostname = hostname.trim().replace(/"/g, '');
         localStorage.setItem('you_os_hostname', this.hostname);
         this.updatePrompt();
-        this.displayResponse(`config.host: set to ${this.hostname}`);
+        await this.displayResponse(`config.host: set to ${this.hostname}`);
     }
 
     async showHelp() {

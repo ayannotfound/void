@@ -192,28 +192,85 @@ body {
     color: #888888;
 }
 
-/* Mobile adjustments */
+/* Mobile optimizations */
 @media (max-width: 768px) {
     body {
         font-size: 12px;
+        /* Handle mobile browsers with bottom bars */
+        height: 100vh;
+        height: 100dvh; /* Dynamic viewport height for modern browsers */
     }
     
     #terminal {
-        padding: 10px;
-        padding-bottom: 5px;
+        /* Safe area insets for notches and status bars */
+        padding-top: max(20px, env(safe-area-inset-top));
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+        padding-bottom: max(5px, env(safe-area-inset-bottom));
+        height: 100vh;
+        height: 100dvh;
     }
     
     #output {
         margin-bottom: 5px;
+        /* Better scrolling on mobile */
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #input-line {
+        /* Prevent zoom on input focus */
+        min-height: 1.4em;
+    }
+    
+    #input {
+        /* Prevent zoom on input focus */
+        font-size: 16px;
+        /* Better mobile keyboard experience */
+        autocomplete: off;
+        autocorrect: off;
+        autocapitalize: off;
+        spellcheck: false;
+    }
+    
+    #prompt {
+        /* More readable on small screens */
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 60vw;
     }
     
     .response {
-        margin-left: 10px;
+        margin-left: 5px;
         margin-bottom: 5px;
+        /* Better line wrapping on mobile */
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .user-input {
+        /* Better line wrapping on mobile */
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
     
     .user-input .typing-text, .response .typing-text {
         filter: none; /* Disable filter on mobile for performance */
+    }
+    
+    /* Mobile log overlay adjustments */
+    #log {
+        padding-top: max(20px, env(safe-area-inset-top));
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        font-size: 11px;
+    }
+    
+    .log-entry {
+        margin-bottom: 6px;
+        word-break: break-word;
     }
 }
 
@@ -233,4 +290,45 @@ body {
     -moz-user-select: text;
     -ms-user-select: text;
     user-select: text;
+}
+
+/* iOS specific optimizations */
+@supports (-webkit-appearance: none) {
+    #terminal {
+        /* Handle iOS Safari bottom bar */
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    
+    #input {
+        /* Prevent iOS zoom on focus */
+        -webkit-text-size-adjust: 100%;
+        transform: translateZ(0); /* Force hardware acceleration */
+    }
+}
+
+/* Android specific optimizations */
+@media screen and (max-width: 768px) and (orientation: portrait) {
+    #terminal {
+        /* Better handling of Android keyboard */
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+    
+    #output {
+        /* Ensure output is visible above virtual keyboard */
+        max-height: calc(100vh - 100px);
+        max-height: calc(100dvh - 100px);
+    }
+}
+
+/* Landscape mobile optimizations */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+    #terminal {
+        padding-top: max(10px, env(safe-area-inset-top));
+    }
+    
+    #output {
+        max-height: calc(100vh - 60px);
+        max-height: calc(100dvh - 60px);
+    }
 }

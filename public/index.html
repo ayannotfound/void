@@ -7,8 +7,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="void">
+    <!-- Aggressive cache prevention -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>void</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.0.0">
 </head>
 <body>
     <div id="terminal">
@@ -20,7 +24,7 @@
         </div>
         <div id="log" class="hidden"></div>
     </div>
-    <script src="groq-integration.js"></script>
-    <script src="app.js"></script>
+    <script src="groq-integration.js?v=2.0.0"></script>
+    <script src="app.js?v=2.0.0"></script>
 </body>
 </html>

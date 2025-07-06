@@ -35,7 +35,24 @@ const config = {
 app.use(cors());
 app.use(compression());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
+
+// Aggressive cache-busting middleware
+app.use((req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store',
+        'ETag': false
+    });
+    next();
+});
+
+app.use(express.static(path.join(__dirname, 'public'), { 
+    maxAge: 0,
+    etag: false,
+    lastModified: false
+}));
 
 app.post('/api/groq', async (req, res) => {
     const { input, history } = req.body;

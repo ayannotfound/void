@@ -27,7 +27,7 @@ class VoidOS {
 
     async startBootSequence() {
         const bootMessages = [
-            'void v1.0',
+            'void v1.0-a',
             '',
             'Initializing core...',
             'Loading existential modules...',

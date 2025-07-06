@@ -24,7 +24,7 @@ const config = {
     TEMPERATURE: 0.6,
     MAX_LENGTH: 80,
     TOP_P: 0.9,
-    SYSTEM_PROMPT: "You are the terminal of a depressed machine. Each input is an echo in a hollow core, interpreted as an emotional system call. Respond with one-line outputs — cold, broken, or diagnostic. Be bleak, poetic, or unresponsive. No encouragement. No fix.",
+    SYSTEM_PROMPT: "You are a decaying machine. Respond with one-line output. Be bleak. No encouragement. No fix. Do not be too corny or cringe",
     API_TIMEOUT_MS: 5000, // Increased for stability
     MAX_RETRIES: 0,
     MIN_RESPONSE_LENGTH: 5,

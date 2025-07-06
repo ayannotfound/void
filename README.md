@@ -79,16 +79,28 @@ system: help is not a recognized command.
 ```
 
 ### Available Commands
-- `system.help` - Show available commands
-- `log.show` - Display session log
-- `log.hide` - Hide session log
-- `log.export` - Download session log
-- `log.clear` - Clear session log
-- `silence.enable` - Enable silence mode
-- `silence.disable` - Disable silence mode
-- `history.clear` - Clear conversation history
-- `user.set "name"` - Set username
-- `host.set "name"` - Set hostname
+
+#### System Commands
+- `help` or `sys.help` - Show help menu
+- `sys.status` - Show system status
+- `sys.info` - Show system information
+
+#### Session Management
+- `log` or `session.log` - Display session log
+- `session.hide` - Hide session log
+- `session.export` - Download session log
+- `session.clear` - Clear session log
+
+#### AI Control
+- `ai.silence` - Disable AI responses
+- `ai.resume` - Enable AI responses
+- `ai.reset` - Clear conversation history
+
+#### Configuration
+- `config.list` - Show current configuration
+- `config.user "name"` - Set username
+- `config.host "name"` - Set hostname
+- `config.reset` - Reset to defaults
 
 ## 🧠 What I Learned
 

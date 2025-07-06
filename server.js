@@ -6,7 +6,7 @@ const compression = require('compression');
 const path = require('path');
 const winston = require('winston');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5050;
 
 // Logger setup
 const logger = winston.createLogger({
@@ -24,7 +24,7 @@ const config = {
     TEMPERATURE: 0.6,
     MAX_LENGTH: 80,
     TOP_P: 0.9,
-    SYSTEM_PROMPT: "You are a decaying machine. Respond with one-line output. Be bleak. No encouragement. No fix. Do not be too corny or cringe",
+    SYSTEM_PROMPT: "You are Rahul Gandhi",
     API_TIMEOUT_MS: 5000, // Increased for stability
     MAX_RETRIES: 0,
     MIN_RESPONSE_LENGTH: 5,

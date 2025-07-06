@@ -15,12 +15,12 @@ class VoidOS {
         this.hostname = localStorage.getItem('you_os_hostname') || 'void';
         this.groqResponder = new GroqResponder();
         this.initialized = false;
+        this.startTime = Date.now();
         this.init();
     }
 
     async init() {
         this.setupEventListeners();
-        this.startCursorSync();
         this.focusInput();
         await this.startBootSequence();
     }
@@ -39,6 +39,7 @@ class VoidOS {
         ];
         this.prompt.textContent = '';
         this.input.style.display = 'none';
+        
         for (const msg of bootMessages) {
             await this.delay(400);
             this.displayBootMessage(msg);
@@ -129,51 +130,28 @@ class VoidOS {
         this.input.setSelectionRange(this.input.value.length, this.input.value.length);
     }
 
-    startCursorSync() {
-        this.updateCursorPosition = () => {
-            if (!this.input || !this.prompt || !this.cursor) return;
-            const cursorPosition = this.input.selectionEnd || this.input.selectionStart;
-            const inputLineRect = this.input.parentElement.getBoundingClientRect();
-            const inputRect = this.input.getBoundingClientRect();
-            const textBeforeCursor = this.input.value.substring(0, cursorPosition);
-            const textWidth = this.getTextWidth(textBeforeCursor, this.input);
-            this.cursor.style.left = `${inputRect.left - inputLineRect.left + textWidth}px`;
-            this.cursor.style.opacity = this.input.selectionStart === this.input.selectionEnd ? '1' : '0';
-        };
-        this.input.addEventListener('input', this.updateCursorPosition);
-        this.input.addEventListener('keyup', (e) => {
-            this.updateCursorPosition();
-            if (e.key === 'Enter') {
-                setTimeout(this.updateCursorPosition, 0);
-            }
-        });
-        this.input.addEventListener('click', this.updateCursorPosition);
-        window.addEventListener('resize', this.updateCursorPosition);
-    }
-
-    getTextWidth(text, element) {
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        const styles = window.getComputedStyle(element);
-        context.font = `${styles.fontSize} ${styles.fontFamily}`;
-        return context.measureText(text).width;
-    }
 
     async processInput() {
         const userInput = this.input.value.trim();
         if (!userInput && this.isLoggedIn) return;
+        
+        // Clear input IMMEDIATELY
+        this.input.value = '';
+        
         if (!this.isLoggedIn) {
             await this.handleLogin(userInput);
-            this.input.value = '';
             return;
         }
+        
         await this.displayUserInput(userInput);
+        
         if (this.handleSystemCommand(userInput)) {
-            this.input.value = '';
             this.updatePrompt();
             return;
         }
+        
         this.logInteraction(userInput, '');
+        
         if (!this.silenceMode) {
             const response = await this.getResponse(userInput);
             await this.displayResponse(response);
@@ -189,46 +167,68 @@ class VoidOS {
             await this.delay(500);
             responseElement.remove();
         }
-        this.input.value = '';
+        
         this.updatePrompt();
     }
 
     handleSystemCommand(input) {
         const cmd = input.toLowerCase();
         switch (cmd) {
-            case 'log.show':
-                this.showLog();
-                return true;
-            case 'log.hide':
-                this.hideLog();
-                return true;
-            case 'log.export':
-                this.exportLog();
-                return true;
-            case 'log.clear':
-                this.clearLog();
-                return true;
-            case 'silence.enable':
-                this.silenceMode = true;
-                this.displayResponse('silence mode enabled.');
-                return true;
-            case 'silence.disable':
-                this.silenceMode = false;
-                this.displayResponse('silence mode disabled.');
-                return true;
-            case 'history.clear':
-                this.clearConversationHistory();
-                return true;
-            case 'system.help':
+            // System commands
+            case 'sys.help':
+            case 'help':
                 this.showHelp();
                 return true;
+            case 'sys.status':
+                this.showStatus();
+                return true;
+            case 'sys.info':
+                this.showSystemInfo();
+                return true;
+            
+            // Session management
+            case 'session.log':
+            case 'log':
+                this.showLog();
+                return true;
+            case 'session.hide':
+                this.hideLog();
+                return true;
+            case 'session.export':
+                this.exportLog();
+                return true;
+            case 'session.clear':
+                this.clearLog();
+                return true;
+            
+            // AI control
+            case 'ai.silence':
+                this.silenceMode = true;
+                this.displayResponse('ai.silence: enabled.');
+                return true;
+            case 'ai.resume':
+                this.silenceMode = false;
+                this.displayResponse('ai.resume: enabled.');
+                return true;
+            case 'ai.reset':
+                this.clearConversationHistory();
+                return true;
+            
+            // User configuration
+            case 'config.list':
+                this.showConfig();
+                return true;
+            case 'config.reset':
+                this.resetConfig();
+                return true;
+            
             default:
-                if (cmd.startsWith('user.set ')) {
-                    this.setUser(cmd.substring(9));
+                if (cmd.startsWith('config.user ')) {
+                    this.setUser(cmd.substring(12));
                     return true;
                 }
-                if (cmd.startsWith('host.set ')) {
-                    this.setHost(cmd.substring(9));
+                if (cmd.startsWith('config.host ')) {
+                    this.setHost(cmd.substring(12));
                     return true;
                 }
                 return false;
@@ -397,61 +397,120 @@ class VoidOS {
         a.download = `you.os-session-${new Date().toISOString().split('T')[0]}.log`;
         a.click();
         URL.revokeObjectURL(url);
-        this.displayResponse('log exported.');
+        this.displayResponse('session.export: log file downloaded.');
     }
 
     clearLog() {
         this.sessionLog = [];
         if (this.logVisible) this.renderLog();
-        this.displayResponse('log cleared.');
+        this.displayResponse('session.clear: log entries purged.');
     }
 
     clearConversationHistory() {
         if (this.groqResponder) {
             this.groqResponder.clearHistory();
-            this.displayResponse('conversation history cleared.');
+            this.displayResponse('ai.reset: conversation history cleared.');
         }
     }
 
     setUser(username) {
         if (!username || username.trim() === '') {
-            this.displayResponse('error: username cannot be empty.');
+            this.displayResponse('config.user: error - username cannot be empty.');
             return;
         }
         this.username = username.trim().replace(/"/g, '');
         localStorage.setItem('you_os_username', this.username);
         this.updatePrompt();
-        this.displayResponse(`username set to: ${this.username}`);
+        this.displayResponse(`config.user: set to ${this.username}`);
     }
 
     setHost(hostname) {
         if (!hostname || hostname.trim() === '') {
-            this.displayResponse('error: hostname cannot be empty.');
+            this.displayResponse('config.host: error - hostname cannot be empty.');
             return;
         }
         this.hostname = hostname.trim().replace(/"/g, '');
         localStorage.setItem('you_os_hostname', this.hostname);
         this.updatePrompt();
-        this.displayResponse(`hostname set to: ${this.hostname}`);
+        this.displayResponse(`config.host: set to ${this.hostname}`);
     }
 
     async showHelp() {
         const helpLines = [
             'system commands:',
-            'log.show - display session log',
-            'log.hide - hide session log',
-            'log.export - download session log',
-            'log.clear - clear session log',
-            'silence.enable - enable silence mode',
-            'silence.disable - disable silence mode',
-            'history.clear - clear conversation history',
-            'user.set "name" - set username',
-            'host.set "name" - set hostname',
-            'system.help - show available commands'
+            '',
+            'sys.help, help - show this help menu',
+            'sys.status - show system status',
+            'sys.info - show system information',
+            '',
+            'session.log, log - display session log',
+            'session.hide - hide session log',
+            'session.export - download session log',
+            'session.clear - clear session log',
+            '',
+            'ai.silence - disable ai responses',
+            'ai.resume - enable ai responses',
+            'ai.reset - clear conversation history',
+            '',
+            'config.list - show current configuration',
+            'config.user "name" - set username',
+            'config.host "name" - set hostname',
+            'config.reset - reset to defaults'
         ];
         for (const line of helpLines) {
             await this.displayResponse(line);
         }
+    }
+
+    async showStatus() {
+        const status = [
+            `system.status: ${this.initialized ? 'operational' : 'degraded'}`,
+            `ai.status: ${this.silenceMode ? 'silenced' : 'active'}`,
+            `session.entries: ${this.sessionLog.length}`,
+            `session.visible: ${this.logVisible ? 'true' : 'false'}`,
+            `user.identity: ${this.username}@${this.hostname}`
+        ];
+        for (const line of status) {
+            await this.displayResponse(line);
+        }
+    }
+
+    async showSystemInfo() {
+        const info = [
+            'void terminal v1.0',
+            'powered by groq llama-3.1-8b-instant',
+            'existential command processor',
+            `uptime: ${Math.floor((Date.now() - this.startTime) / 1000)}s`,
+            'status: decaying as intended'
+        ];
+        for (const line of info) {
+            await this.displayResponse(line);
+        }
+    }
+
+    async showConfig() {
+        const config = [
+            'current configuration:',
+            `config.user: ${this.username}`,
+            `config.host: ${this.hostname}`,
+            `config.silence: ${this.silenceMode}`,
+            `config.log_visible: ${this.logVisible}`,
+            `config.session_count: ${this.sessionLog.length}`
+        ];
+        for (const line of config) {
+            await this.displayResponse(line);
+        }
+    }
+
+    async resetConfig() {
+        this.username = 'user';
+        this.hostname = 'void';
+        this.silenceMode = false;
+        localStorage.setItem('you_os_username', this.username);
+        localStorage.setItem('you_os_hostname', this.hostname);
+        this.hideLog();
+        this.updatePrompt();
+        await this.displayResponse('config.reset: defaults restored.');
     }
 }
 

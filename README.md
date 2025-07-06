@@ -38,7 +38,7 @@ A terminal-style web application that interprets emotional inputs as system comm
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/void.git
+   git clone https://github.com/ayannotfound/void.git
    cd void
    ```
 
@@ -102,8 +102,8 @@ system: help is not a recognized command.
 
 ## 📫 About Me
 
-- [LinkedIn](https://www.linkedin.com/in/yourprofile) (Add your LinkedIn profile)
-- [GitHub](https://github.com/yourusername) (Add your GitHub profile)
+- [LinkedIn](https://www.linkedin.com/in/ayush-anand-420590306/) (Add your LinkedIn profile)
+- [GitHub](https://github.com/ayannotfound) (Add your GitHub profile)
 
 ## 📚 References
 

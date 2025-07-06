@@ -1,5 +1,5 @@
 {
-  "name": "you-os",
+  "name": "void",
   "version": "1.0.0",
   "description": "you.os: A terminal-style web app that processes emotional inputs as system commands using the Groq AI API.",
   "main": "server.js",

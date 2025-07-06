@@ -27,7 +27,7 @@ class VoidOS {
 
     async startBootSequence() {
         const bootMessages = [
-            'you.os v1.0',
+            'void v1.0',
             '',
             'Initializing core...',
             'Loading existential modules...',
@@ -89,7 +89,7 @@ class VoidOS {
         await this.initializeSystem();
         this.updatePrompt();
         await this.displayResponse('');
-        await this.displayResponse(`Welcome to you.os, ${this.username}.`);
+        await this.displayResponse(`Welcome to void, ${this.username}.`);
         await this.displayResponse('Type "system.help" for commands or just speak to the void.');
         await this.displayResponse('system status: critical');
         await this.displayResponse('');

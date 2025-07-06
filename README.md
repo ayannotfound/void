@@ -2,7 +2,7 @@
 
 A terminal-style web application that interprets emotional inputs as system commands, powered by the Groq API with a dark, existential aesthetic.
 
-[Live Demo](https://my-deployment-url.com) (Link to be added upon deployment)
+[Live Demo](https://void-7zy3.onrender.com)
 
 ## 🚀 Features
 

@@ -17,18 +17,60 @@ class VoidOS {
         this.initialized = false;
         this.startTime = Date.now();
         this.isTyping = false;
+        this.chaosMode = false;
+        this.entropy = 0;
+        this.maxEntropy = 1000;
+        this.lastEntropyCheck = 0;
+        
+        // System maintenance states
+        this.stabilizationActive = false;
+        this.stabilizationEnd = 0;
+        this.defragActive = false;
+        this.defragEnd = 0;
+        this.defragEfficiency = 0;
+        this.cooldownActive = false;
+        this.cooldownEnd = 0;
+        this.thermalEfficiency = 1.0;
+        
+        // Cooldown timestamps
+        this.lastRecover = 0;
+        this.lastStabilize = 0;
+        this.lastDefrag = 0;
+        this.lastCooldown = 0;
+        
         this.init();
     }
 
     async init() {
         this.setupEventListeners();
         this.focusInput();
+        this.startEntropyTimer();
         await this.startBootSequence();
+    }
+    
+    startEntropyTimer() {
+        // Passive entropy increase over time
+        setInterval(() => {
+            if (this.isLoggedIn) {
+                // System naturally degrades over time
+                this.entropy += Math.floor(Math.random() * 3) + 1; // 1-3 entropy per 10 seconds
+                
+                // Chance of entropy spikes during idle time
+                if (Math.random() < 0.1) {
+                    this.entropy += Math.floor(Math.random() * 20) + 10;
+                    if (this.entropy > 300) {
+                        this.displayResponse('SYSTEM ALERT: entropy spike detected - maintenance recommended.');
+                    }
+                }
+                
+                this.checkChaosActivation();
+            }
+        }, 10000); // Every 10 seconds
     }
 
     async startBootSequence() {
         const bootMessages = [
-            'void v1.0-a',
+            'void v1.0-b',
             '',
             'Initializing core...',
             'Loading existential modules...',
@@ -92,7 +134,9 @@ class VoidOS {
         this.updatePrompt();
         await this.displayResponse('');
         await this.displayResponse(`Welcome to void, ${this.username}.`);
-        await this.displayResponse('Type "system.help" for commands or just speak to the void.');
+        await this.displayResponse('SURVIVAL MODE: System entropy increases over time.');
+        await this.displayResponse('Use system.diagnose to check health, system.recover for repairs.');
+        await this.displayResponse('Type "help" for commands or chat normally - but watch the entropy!');
         await this.displayResponse('system status: critical');
         await this.displayResponse('');
     }
@@ -192,13 +236,26 @@ class VoidOS {
         
         await this.displayUserInput(userInput);
         
-        if (await this.handleSystemCommand(userInput)) {
+        const systemCommandResult = await this.handleSystemCommand(userInput);
+        if (systemCommandResult.handled) {
+            // Add system command and response to conversation history
+            if (this.groqResponder) {
+                this.groqResponder.addToHistory('user', userInput);
+                // Always add some response to history, even if null/empty
+                const historyResponse = systemCommandResult.response || `executed: ${userInput}`;
+                this.groqResponder.addToHistory('assistant', historyResponse);
+            }
+            // Log the interaction
+            this.logInteraction(userInput, systemCommandResult.response || `executed: ${userInput}`);
             this.updatePrompt();
             this.isTyping = false;
             return;
         }
         
         this.logInteraction(userInput, '');
+        
+        // Increase entropy with each interaction
+        this.increaseEntropy();
         
         if (!this.silenceMode) {
             const response = await this.getResponse(userInput);
@@ -222,72 +279,130 @@ class VoidOS {
 
     async handleSystemCommand(input) {
         const cmd = input.toLowerCase();
+        let responseText = '';
+        
         switch (cmd) {
             // System commands
             case 'sys.help':
             case 'help':
                 await this.showHelp();
-                return true;
+                return { handled: true, response: 'help: command list displayed' };
             case 'sys.status':
                 await this.showStatus();
-                return true;
+                return { handled: true, response: 'sys.status: system status displayed' };
             case 'sys.info':
                 await this.showSystemInfo();
-                return true;
+                return { handled: true, response: 'sys.info: system information displayed' };
+            case 'entropy':
+                responseText = `entropy: ${this.getEntropyDisplay()}`;
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
+            case 'entropy.reset':
+                this.entropy = 0;
+                this.chaosMode = false;
+                responseText = 'entropy.reset: system stability restored.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
+            
+            // System recovery commands
+            case 'system.recover':
+                await this.systemRecover();
+                return { handled: true, response: 'system.recover: recovery protocol executed' };
+            case 'system.diagnose':
+                await this.systemDiagnose();
+                return { handled: true, response: 'system.diagnose: diagnostic scan completed' };
+            case 'system.stabilize':
+                await this.systemStabilize();
+                return { handled: true, response: 'system.stabilize: stabilization process completed' };
+            case 'system.defrag':
+                await this.systemDefrag();
+                return { handled: true, response: 'system.defrag: defragmentation completed' };
+            case 'system.cooldown':
+                await this.systemCooldown();
+                return { handled: true, response: 'system.cooldown: thermal regulation completed' };
             
             // Session management
             case 'session.log':
             case 'log':
                 this.showLog();
-                return true;
+                return { handled: true, response: 'session.log: log display activated' };
             case 'session.hide':
                 this.hideLog();
-                return true;
+                return { handled: true, response: 'session.hide: log display deactivated' };
             case 'session.export':
                 await this.exportLog();
-                return true;
+                return { handled: true, response: 'session.export: log file downloaded' };
             case 'session.clear':
                 await this.clearLog();
-                return true;
+                return { handled: true, response: 'session.clear: log entries purged' };
             
             // AI control
             case 'ai.silence':
                 this.silenceMode = true;
-                await this.displayResponse('ai.silence: enabled.');
-                return true;
+                responseText = 'ai.silence: enabled.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
             case 'ai.resume':
                 this.silenceMode = false;
-                await this.displayResponse('ai.resume: enabled.');
-                return true;
+                responseText = 'ai.resume: enabled.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
             case 'ai.reset':
                 await this.clearConversationHistory();
-                return true;
+                return { handled: true, response: 'ai.reset: conversation history cleared' };
+            
+            // Chaos mode
+            case 'chaos.enable':
+                this.chaosMode = true;
+                responseText = 'chaos.enable: maximum instability activated.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
+            case 'chaos.disable':
+                this.chaosMode = false;
+                responseText = 'chaos.disable: stability protocols restored.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
             
             // User configuration
             case 'config.list':
                 await this.showConfig();
-                return true;
+                return { handled: true, response: 'config.list: configuration displayed' };
             case 'config.reset':
                 await this.resetConfig();
-                return true;
+                return { handled: true, response: 'config.reset: defaults restored' };
+            
+            // Secret commands
+            case 'test.fun':
+                await this.switchMode('humour_test');
+                return { handled: true, response: null }; // Don't add humour mode to history
+            case 'test.end':
+                await this.switchMode('terminal');
+                return { handled: true, response: null }; // Don't add humour mode to history
             
             default:
                 if (cmd.startsWith('config.user ')) {
-                    await this.setUser(cmd.substring(12));
-                    return true;
+                    const username = cmd.substring(12).trim().replace(/["\\']/g, '');
+                    await this.setUser(username);
+                    return { handled: true, response: `config.user: set to ${username}` };
                 }
                 if (cmd.startsWith('config.host ')) {
-                    await this.setHost(cmd.substring(12));
-                    return true;
+                    const hostname = cmd.substring(12).trim().replace(/["\\']/g, '');
+                    await this.setHost(hostname);
+                    return { handled: true, response: `config.host: set to ${hostname}` };
                 }
-                return false;
+                if (cmd.startsWith('test.set ')) {
+                    const character = cmd.substring(9).trim();
+                    await this.setCharacter(character);
+                    return { handled: true, response: null }; // Don't add humour mode to history
+                }
+                return { handled: false, response: null };
         }
     }
 
     async getResponse(input) {
         if (!this.initialized) return 'system initializing...';
         try {
-            const response = await this.groqResponder.generateResponse(input);
+            const response = await this.groqResponder.generateResponse(input, this.entropy);
             return response || 'system error: no response generated.';
         } catch (error) {
             return 'critical system failure.';
@@ -323,32 +438,95 @@ class VoidOS {
             let currentText = fullText;
             for (let i = 0; i < line.length; i++) {
                 const char = line[i];
-                if (Math.random() < 0.05 && char.match(/[a-zA-Z0-9]/)) {
+                // Calculate entropy-based glitch probabilities
+                const baseEntropy = Math.max(this.entropy, 1); // Avoid division by 0
+                const entropyFactor = Math.min(baseEntropy / 100, 10); // Scale: 0-10x multiplier
+                const chaosBoost = this.chaosMode ? 3 : 1;
+                
+                // Apply thermal efficiency (cooldown reduces visual corruption)
+                const thermalReduction = this.cooldownActive ? (1 / this.thermalEfficiency) : 1;
+                const totalMultiplier = entropyFactor * chaosBoost * thermalReduction;
+                
+                // Base glitch rates scale dramatically with entropy, reduced by thermal efficiency
+                const wrongCharRate = Math.min((0.01 + (baseEntropy / 1000)) * thermalReduction, 0.8);
+                const glitchCharRate = Math.min((0.005 + (baseEntropy / 1500)) * thermalReduction, 0.6);
+                const deleteCharRate = Math.min((0.002 + (baseEntropy / 2000)) * thermalReduction, 0.4);
+                const duplicateRate = Math.min((0.001 + (baseEntropy / 2500)) * thermalReduction, 0.3);
+                const caseFlipRate = Math.min((0.003 + (baseEntropy / 1800)) * thermalReduction, 0.5);
+                const corruptionRate = Math.min((0.001 + (baseEntropy / 3000)) * thermalReduction, 0.25);
+                const extremeChaosRate = this.chaosMode ? Math.min((baseEntropy / 5000) * thermalReduction, 0.15) : 0;
+                
+                // Wrong character glitch
+                if (Math.random() < wrongCharRate && char.match(/[a-zA-Z0-9]/)) {
                     const wrongChar = String.fromCharCode(char.charCodeAt(0) + Math.floor(Math.random() * 5));
                     textSpan.textContent = currentText + wrongChar;
                     await this.delay(40);
                     textSpan.textContent = currentText;
                     await this.delay(30);
                 }
-                if (Math.random() < 0.02) {
-                    const glitchChar = ['#', '%', '$', '!', '@', '*', '?'][Math.floor(Math.random() * 7)];
+                
+                // Random symbol insertion
+                if (Math.random() < glitchCharRate) {
+                    const glitchChars = ['#', '%', '$', '!', '@', '*', '?', '~', '^', '&', '░', '▒', '▓', '█', '◄', '►', '↑', '↓'];
+                    const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
                     textSpan.textContent = currentText + glitchChar;
                     await this.delay(20);
                     textSpan.textContent = currentText;
                     await this.delay(20);
                 }
-                if (Math.random() < 0.01 && currentText.length > 0) {
+                
+                // Character deletion
+                if (Math.random() < deleteCharRate && currentText.length > 0) {
                     textSpan.textContent = currentText.slice(0, -1);
                     await this.delay(30);
                     textSpan.textContent = currentText;
                 }
-                if (Math.random() < 0.007 && i > 3) {
+                
+                // Character duplication
+                if (Math.random() < duplicateRate && i > 3) {
                     textSpan.textContent = currentText + char + char;
                     await this.delay(25);
+                }
+                
+                // Case flip glitch
+                if (Math.random() < caseFlipRate && char.match(/[a-zA-Z]/)) {
+                    const flippedChar = char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase();
+                    textSpan.textContent = currentText + flippedChar;
+                    await this.delay(35);
+                    textSpan.textContent = currentText;
+                    await this.delay(15);
+                }
+                
+                // Block corruption effect
+                if (Math.random() < corruptionRate && i > 2) {
+                    const corruptionLevel = Math.min(baseEntropy / 500, 0.8);
+                    const corruptText = currentText.split('').map(c => 
+                        Math.random() < corruptionLevel ? ['█', '▓', '▒', '░'][Math.floor(Math.random() * 4)] : c
+                    ).join('');
+                    textSpan.textContent = corruptText + char;
+                    await this.delay(50 + Math.random() * 100);
+                    textSpan.textContent = currentText;
+                    await this.delay(30);
+                }
+                
+                // Extreme chaos: Complete line scramble
+                if (Math.random() < extremeChaosRate) {
+                    const chaosChars = ['█', '▓', '▒', '░', '#', '%', '@', '!', '◄', '►', '↕', '‼', '¶', '§'];
+                    const chaosText = currentText.split('').map(() => 
+                        chaosChars[Math.floor(Math.random() * chaosChars.length)]
+                    ).join('');
+                    textSpan.textContent = chaosText;
+                    await this.delay(100 + Math.random() * 300);
+                    textSpan.textContent = currentText;
+                    await this.delay(50);
                 }
                 currentText += char;
                 textSpan.textContent = currentText;
                 this.scrollToBottom();
+                
+                // Trigger background chaos effects during typing
+                this.updateBackgroundChaos();
+                
                 if (['.', ',', '-', ':', ';'].includes(char)) {
                     await this.delay(120 + Math.random() * 80);
                 } else if (char === ' ') {
@@ -491,20 +669,34 @@ class VoidOS {
             'sys.help, help - show this help menu',
             'sys.status - show system status',
             'sys.info - show system information',
+            'entropy - display current entropy level',
+            'entropy.reset - reset entropy to zero',
             '',
+            'MAINTENANCE PROTOCOLS:',
+            'system.recover - emergency recovery (60s cooldown)',
+            'system.diagnose - run system diagnostics',
+            'system.stabilize - prevent entropy increase (45s cooldown)', 
+            'system.defrag - improve entropy efficiency (120s cooldown)',
+            'system.cooldown - reduce visual corruption (90s cooldown)',
+            '',
+            'SESSION MANAGEMENT:',
             'session.log, log - display session log',
             'session.hide - hide session log',
             'session.export - download session log',
             'session.clear - clear session log',
             '',
-            'ai.silence - disable ai responses',
-            'ai.resume - enable ai responses',
+            'AI CONTROL:',
             'ai.reset - clear conversation history',
             '',
+            'CONFIGURATION:',
             'config.list - show current configuration',
             'config.user "name" - set username',
             'config.host "name" - set hostname',
-            'config.reset - reset to defaults'
+            'config.reset - reset to defaults',
+            '',
+            'WARNING: system automatically activates protective',
+            'measures during critical failures. some functions',
+            'may become temporarily unavailable.'
         ];
         for (const line of helpLines) {
             await this.displayResponse(line);
@@ -512,9 +704,19 @@ class VoidOS {
     }
 
     async showStatus() {
+        const baseEntropy = Math.max(this.entropy, 1);
+        const wrongCharRate = Math.min(0.01 + (baseEntropy / 1000), 0.8);
+        const glitchLevel = Math.floor(wrongCharRate * 100);
+        
         const status = [
             `system.status: ${this.initialized ? 'operational' : 'degraded'}`,
-            `ai.status: ${this.silenceMode ? 'silenced' : 'active'}`,
+            `ai.response: ${this.silenceMode ? 'compromised' : 'operational'}`,
+            `chaos.level: ${this.chaosMode ? 'maximum' : 'nominal'}`,
+            `entropy: ${this.getEntropyDisplay()}`,
+            `corruption.rate: ${glitchLevel}%`,
+            `stabilizers: ${this.stabilizationActive ? 'engaged' : 'disengaged'}`,
+            `memory.optimizer: ${this.defragActive ? 'active' : 'idle'}`,
+            `thermal.control: ${this.cooldownActive ? 'regulating' : 'normal'}`,
             `session.entries: ${this.sessionLog.length}`,
             `session.visible: ${this.logVisible ? 'true' : 'false'}`,
             `user.identity: ${this.username}@${this.hostname}`
@@ -525,11 +727,21 @@ class VoidOS {
     }
 
     async showSystemInfo() {
+        const entropyLevel = this.entropy;
+        let degradationStatus = 'stable';
+        if (entropyLevel >= 900) degradationStatus = 'critical_failure';
+        else if (entropyLevel >= 600) degradationStatus = 'severe_instability';
+        else if (entropyLevel >= 300) degradationStatus = 'moderate_corruption';
+        else if (entropyLevel >= 100) degradationStatus = 'minor_degradation';
+        
         const info = [
-            'void terminal v1.0',
+            'void terminal v1.0-b [SURVIVAL MODE]',
             'powered by groq llama-3.1-8b-instant',
-            'existential command processor',
+            'entropy-aware command processor',
             `uptime: ${Math.floor((Date.now() - this.startTime) / 1000)}s`,
+            `entropy.level: ${this.getEntropyDisplay()}`,
+            `degradation.status: ${degradationStatus}`,
+            'ai.awareness: entropy_synchronized',
             'status: decaying as intended'
         ];
         for (const line of info) {
@@ -560,6 +772,381 @@ class VoidOS {
         this.hideLog();
         this.updatePrompt();
         await this.displayResponse('config.reset: defaults restored.');
+    }
+
+    async switchMode(mode) {
+        try {
+            const response = await fetch('/api/switch-mode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ mode })
+            });
+            
+            if (!response.ok) {
+                await this.displayResponse('mode.switch: endpoint error.');
+                return;
+            }
+            
+            const data = await response.json();
+            await this.displayResponse(data.response);
+            
+            // Clear conversation history when switching modes
+            if (this.groqResponder) {
+                this.groqResponder.clearHistory();
+            }
+        } catch (error) {
+            await this.displayResponse('mode.switch: connection failed.');
+        }
+    }
+
+    async setCharacter(name) {
+        try {
+            // Remove quotes if present
+            const cleanName = name.replace(/^["']+|["']+$/g, '').trim();
+            
+            const response = await fetch('/api/set-character', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: cleanName })
+            });
+            
+            if (!response.ok) {
+                await this.displayResponse('test.set: endpoint error.');
+                return;
+            }
+            
+            const data = await response.json();
+            await this.displayResponse(data.response);
+            
+            // Clear conversation history when changing character
+            if (this.groqResponder) {
+                this.groqResponder.clearHistory();
+            }
+        } catch (error) {
+            await this.displayResponse('test.set: connection failed.');
+        }
+    }
+
+    increaseEntropy() {
+        // Skip entropy increase if stabilization is active
+        if (this.stabilizationActive) {
+            return;
+        }
+        
+        // Base entropy increase
+        let entropyIncrease = Math.floor(Math.random() * 15) + 5;
+        
+        // Apply defrag efficiency (reduces entropy accumulation)
+        if (this.defragActive && this.defragEfficiency > 0) {
+            entropyIncrease = Math.floor(entropyIncrease * (1 - this.defragEfficiency));
+        }
+        
+        this.entropy += entropyIncrease;
+        
+        // Random entropy spikes (also affected by stabilization)
+        if (Math.random() < 0.1) {
+            let spike = Math.floor(Math.random() * 50) + 20;
+            if (this.defragActive && this.defragEfficiency > 0) {
+                spike = Math.floor(spike * (1 - this.defragEfficiency * 0.5));
+            }
+            this.entropy += spike;
+        }
+        
+        // Time-based entropy increase
+        const uptime = Date.now() - this.startTime;
+        let timeEntropy = Math.floor(uptime / 30000); // +1 per 30 seconds
+        if (this.defragActive && this.defragEfficiency > 0) {
+            timeEntropy = Math.floor(timeEntropy * (1 - this.defragEfficiency * 0.3));
+        }
+        this.entropy += timeEntropy;
+        
+        // Check for automatic chaos activation
+        this.checkChaosActivation();
+        
+        // Update background chaos
+        this.updateBackgroundChaos();
+    }
+    
+    checkChaosActivation() {
+        // Automatic chaos activation based on entropy
+        if (!this.chaosMode && this.entropy > 200) {
+            const chaosChance = Math.min((this.entropy - 200) / 300, 0.8); // Max 80% chance
+            if (Math.random() < chaosChance && (this.entropy - this.lastEntropyCheck) > 50) {
+                this.chaosMode = true;
+                this.lastEntropyCheck = this.entropy;
+                this.displayResponse('SYSTEM ALERT: entropy threshold exceeded - chaos mode auto-activated.');
+                
+                // Schedule random chaos disable
+                setTimeout(() => {
+                    if (Math.random() < 0.3) { // 30% chance to auto-disable
+                        this.chaosMode = false;
+                        this.displayResponse('entropy stabilizers engaged - chaos mode disabled.');
+                    }
+                }, Math.random() * 30000 + 10000); // 10-40 seconds
+            }
+        }
+        
+        // Automatic silence mode activation (very rare and dangerous)
+        if (!this.silenceMode && this.entropy > 400) {
+            // Very low chance: 0.1% base, increases slightly with entropy
+            const silenceChance = Math.min(0.001 + (this.entropy / 100000), 0.005); // Max 0.5% chance
+            if (Math.random() < silenceChance) {
+                this.silenceMode = true;
+                this.displayResponse('CRITICAL: AI response system compromised - entering protective silence.');
+                this.displayResponse('WARNING: manual override required to restore AI functionality.');
+                
+                // Automatic recovery after 30-120 seconds
+                const silenceDuration = Math.random() * 90000 + 30000; // 30-120 seconds
+                setTimeout(() => {
+                    if (this.silenceMode) {
+                        this.silenceMode = false;
+                        this.displayResponse('ai.resume: emergency protocols restored AI functionality.');
+                    }
+                }, silenceDuration);
+            }
+        }
+    }
+    
+    updateBackgroundChaos() {
+        const terminal = document.getElementById('terminal');
+        const body = document.body;
+        
+        if (this.entropy > 100) {
+            // Gradual background corruption
+            const corruptionLevel = Math.min(this.entropy / 500, 1);
+            
+            if (this.chaosMode) {
+                // Extreme chaos mode effects
+                if (Math.random() < 0.3) {
+                    // Screen flash
+                    body.style.background = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                    setTimeout(() => {
+                        body.style.background = '#000000';
+                    }, 100 + Math.random() * 200);
+                }
+                
+                if (Math.random() < 0.2) {
+                    // Terminal glitch
+                    terminal.style.filter = `hue-rotate(${Math.random() * 360}deg) saturate(${1 + Math.random() * 3})`;
+                    setTimeout(() => {
+                        terminal.style.filter = 'none';
+                    }, 50 + Math.random() * 300);
+                }
+                
+                if (Math.random() < 0.1) {
+                    // Text corruption
+                    terminal.style.textShadow = `${Math.random() * 10 - 5}px ${Math.random() * 10 - 5}px ${Math.random() * 20}px #ff0000`;
+                    setTimeout(() => {
+                        terminal.style.textShadow = 'none';
+                    }, 200 + Math.random() * 500);
+                }
+            } else {
+                // Subtle entropy effects
+                if (Math.random() < corruptionLevel * 0.1) {
+                    body.style.background = `#${Math.floor(Math.random() * 0x111111).toString(16).padStart(6, '0')}`;
+                    setTimeout(() => {
+                        body.style.background = '#000000';
+                    }, 50);
+                }
+            }
+        }
+    }
+    
+    getEntropyDisplay() {
+        // Display entropy in hexadecimal format to obfuscate the actual value
+        return '0x' + this.entropy.toString(16).toUpperCase().padStart(4, '0');
+    }
+    
+    async systemRecover() {
+        if (this.lastRecover && (Date.now() - this.lastRecover) < 60000) {
+            const remaining = Math.ceil((60000 - (Date.now() - this.lastRecover)) / 1000);
+            await this.displayResponse(`system.recover: emergency protocol on cooldown (${remaining}s remaining).`);
+            return;
+        }
+        
+        await this.displayResponse('system.recover: initiating emergency recovery protocol...');
+        await this.delay(1000);
+        
+        if (this.entropy < 50) {
+            await this.displayResponse('system.recover: no recovery needed - system stable.');
+            return;
+        }
+        
+        // Emergency recovery: reduces entropy by 60-80%
+        const recoveryPercent = Math.random() * 0.2 + 0.6; // 60-80%
+        const recoveryAmount = Math.floor(this.entropy * recoveryPercent);
+        this.entropy = Math.max(0, this.entropy - recoveryAmount);
+        this.lastRecover = Date.now();
+        
+        // Always disable chaos mode on emergency recovery
+        if (this.chaosMode) {
+            this.chaosMode = false;
+            await this.displayResponse('system.recover: chaos mode forcibly disabled.');
+        }
+        
+        await this.displayResponse(`system.recover: emergency recovery complete.`);
+        await this.displayResponse(`system.recover: entropy reduced to ${this.getEntropyDisplay()}`);
+        await this.displayResponse('system.recover: critical systems restored.');
+    }
+    
+    async systemDiagnose() {
+        await this.displayResponse('system.diagnose: scanning system integrity...');
+        await this.delay(800);
+        
+        const entropyLevel = this.entropy;
+        const issues = [];
+        
+        if (entropyLevel > 800) {
+            issues.push('CRITICAL: core memory corruption detected');
+            issues.push('CRITICAL: thermal overload imminent');
+            issues.push('CRITICAL: multiple subsystem failures');
+        } else if (entropyLevel > 500) {
+            issues.push('ERROR: significant memory fragmentation');
+            issues.push('ERROR: cooling system degraded');
+            issues.push('WARNING: process instability detected');
+        } else if (entropyLevel > 200) {
+            issues.push('WARNING: minor memory leaks found');
+            issues.push('INFO: recommend defragmentation');
+        } else {
+            issues.push('INFO: system operating within normal parameters');
+        }
+        
+        // Add random system hints
+        const hints = [
+            'TIP: use system.cooldown to reduce thermal load',
+            'TIP: system.defrag can restore memory integrity',
+            'TIP: system.stabilize helps with process errors',
+            'TIP: regular maintenance prevents critical failures'
+        ];
+        
+        for (const issue of issues) {
+            await this.displayResponse(`system.diagnose: ${issue}`);
+            await this.delay(300);
+        }
+        
+        if (entropyLevel > 100) {
+            const hint = hints[Math.floor(Math.random() * hints.length)];
+            await this.displayResponse(`system.diagnose: ${hint}`);
+        }
+    }
+    
+    async systemStabilize() {
+        if (this.stabilizationActive) {
+            const remaining = Math.ceil((this.stabilizationEnd - Date.now()) / 1000);
+            await this.displayResponse(`system.stabilize: stabilization already active (${remaining}s remaining).`);
+            return;
+        }
+        
+        if (this.lastStabilize && (Date.now() - this.lastStabilize) < 45000) {
+            const remaining = Math.ceil((45000 - (Date.now() - this.lastStabilize)) / 1000);
+            await this.displayResponse(`system.stabilize: stabilizers on cooldown (${remaining}s remaining).`);
+            return;
+        }
+        
+        await this.displayResponse('system.stabilize: engaging entropy stabilizers...');
+        await this.delay(1200);
+        
+        // Stabilization prevents entropy increase for 30-60 seconds
+        const stabilizeDuration = Math.floor(Math.random() * 30000) + 30000; // 30-60 seconds
+        this.stabilizationActive = true;
+        this.stabilizationEnd = Date.now() + stabilizeDuration;
+        this.lastStabilize = Date.now();
+        
+        await this.displayResponse(`system.stabilize: entropy stabilizers engaged.`);
+        await this.displayResponse(`system.stabilize: entropy increase suppressed for ${Math.floor(stabilizeDuration/1000)}s.`);
+        
+        // Auto-disable after duration
+        setTimeout(() => {
+            this.stabilizationActive = false;
+            this.displayResponse('system.stabilize: stabilizers disengaged - entropy increase resumed.');
+        }, stabilizeDuration);
+    }
+    
+    async systemDefrag() {
+        if (this.defragActive) {
+            const remaining = Math.ceil((this.defragEnd - Date.now()) / 1000);
+            await this.displayResponse(`system.defrag: optimization already active (${remaining}s remaining).`);
+            return;
+        }
+        
+        if (this.lastDefrag && (Date.now() - this.lastDefrag) < 120000) {
+            const remaining = Math.ceil((120000 - (Date.now() - this.lastDefrag)) / 1000);
+            await this.displayResponse(`system.defrag: memory optimizer on cooldown (${remaining}s remaining).`);
+            return;
+        }
+        
+        await this.displayResponse('system.defrag: defragmenting memory blocks...');
+        
+        // Simulate defrag progress
+        const progress = ['15%', '35%', '60%', '85%', '100%'];
+        for (const percent of progress) {
+            await this.delay(600);
+            await this.displayResponse(`system.defrag: progress ${percent}`);
+        }
+        
+        // Defrag improves entropy decay efficiency for 2-4 minutes
+        const defragDuration = Math.floor(Math.random() * 120000) + 120000; // 2-4 minutes
+        this.defragActive = true;
+        this.defragEnd = Date.now() + defragDuration;
+        this.defragEfficiency = Math.random() * 0.3 + 0.4; // 40-70% better decay
+        this.lastDefrag = Date.now();
+        
+        await this.displayResponse(`system.defrag: memory optimization complete.`);
+        await this.displayResponse(`system.defrag: entropy decay efficiency improved by ${Math.floor(this.defragEfficiency * 100)}%.`);
+        await this.displayResponse(`system.defrag: optimization active for ${Math.floor(defragDuration/60000)} minutes.`);
+        
+        // Auto-disable after duration
+        setTimeout(() => {
+            this.defragActive = false;
+            this.defragEfficiency = 0;
+            this.displayResponse('system.defrag: memory optimization expired - normal decay resumed.');
+        }, defragDuration);
+    }
+    
+    async systemCooldown() {
+        if (this.cooldownActive) {
+            const remaining = Math.ceil((this.cooldownEnd - Date.now()) / 1000);
+            await this.displayResponse(`system.cooldown: thermal regulation active (${remaining}s remaining).`);
+            return;
+        }
+        
+        if (this.lastCooldown && (Date.now() - this.lastCooldown) < 90000) {
+            const remaining = Math.ceil((90000 - (Date.now() - this.lastCooldown)) / 1000);
+            await this.displayResponse(`system.cooldown: thermal system on cooldown (${remaining}s remaining).`);
+            return;
+        }
+        
+        await this.displayResponse('system.cooldown: initiating thermal regulation cycle...');
+        await this.delay(1500);
+        
+        // Cooldown reduces visual glitches and disables chaos mode temporarily
+        const cooldownDuration = Math.floor(Math.random() * 60000) + 90000; // 1.5-2.5 minutes
+        this.cooldownActive = true;
+        this.cooldownEnd = Date.now() + cooldownDuration;
+        this.thermalEfficiency = Math.random() * 0.6 + 0.7; // 70-130% thermal efficiency
+        this.lastCooldown = Date.now();
+        
+        // Force disable chaos mode during cooldown
+        const wasChaosModeActive = this.chaosMode;
+        this.chaosMode = false;
+        
+        await this.displayResponse(`system.cooldown: thermal regulation active.`);
+        await this.displayResponse(`system.cooldown: visual corruption suppressed by ${Math.floor(this.thermalEfficiency * 100)}%.`);
+        if (wasChaosModeActive) {
+            await this.displayResponse('system.cooldown: chaos mode temporarily disabled.');
+        }
+        await this.displayResponse(`system.cooldown: thermal control active for ${Math.floor(cooldownDuration/60000)} minutes.`);
+        
+        // Auto-disable after duration
+        setTimeout(() => {
+            this.cooldownActive = false;
+            this.thermalEfficiency = 1.0;
+            this.displayResponse('system.cooldown: thermal regulation cycle complete - normal operation resumed.');
+        }, cooldownDuration);
     }
 }
 

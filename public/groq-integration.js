@@ -9,9 +9,9 @@ class GroqResponder {
         // No initialization needed
     }
 
-    async generateResponse(input) {
+    async generateResponse(input, entropy = 0) {
         try {
-            const response = await this.callServerAPI(input);
+            const response = await this.callServerAPI(input, entropy);
             this.addToHistory('user', input);
             this.addToHistory('assistant', response);
             return response;
@@ -20,7 +20,7 @@ class GroqResponder {
         }
     }
 
-    async callServerAPI(input) {
+    async callServerAPI(input, entropy = 0) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
@@ -29,7 +29,8 @@ class GroqResponder {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     input,
-                    history: this.conversationHistory.slice(-this.maxHistoryLength)
+                    history: this.conversationHistory.slice(-this.maxHistoryLength),
+                    entropy: entropy
                 }),
                 signal: controller.signal
             });

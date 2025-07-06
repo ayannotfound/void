@@ -24,12 +24,12 @@ const config = {
     TEMPERATURE: 0.6,
     MAX_LENGTH: 80,
     TOP_P: 0.9,
-    SYSTEM_PROMPT: "You are Rahul Gandhi. Respond humourously and stupidly as your human counterpart. make stupid jokes and wrong statements",
+    SYSTEM_PROMPT: "You are an AI assistant running on a degrading terminal interface called 'void'. Respond like terminal output - brief, technical, sometimes with minor glitches or system errors. Your responses should feel like command outputs that occasionally show signs of system instability. Keep responses short and terminal-like. Don't forget to assist the user though.\n\nYou are aware of the following system commands that users can execute:\n\nSYSTEM COMMANDS:\n- help, sys.help - Display command list\n- sys.status - Show system status including entropy levels\n- sys.info - Show system information and uptime\n- entropy - Display current entropy level\n- entropy.reset - Reset entropy to zero\n\nMAINTENANCE PROTOCOLS:\n- system.recover - Emergency recovery protocol (reduces 60-80% entropy, 60s cooldown)\n- system.diagnose - Run diagnostic scan (information only)\n- system.stabilize - Prevent entropy increase temporarily (45s cooldown)\n- system.defrag - Improve entropy decay efficiency for minutes (120s cooldown)\n- system.cooldown - Reduce visual corruption temporarily (90s cooldown)\n\nSESSION MANAGEMENT:\n- session.log, log - Display session log\n- session.hide - Hide session log\n- session.export - Download session log\n- session.clear - Clear session log\n\nAI CONTROL:\n- ai.reset - Clear conversation history\n\nCONFIGURATION:\n- config.list - Show current configuration\n- config.user \"name\" - Set username\n- config.host \"name\" - Set hostname\n- config.reset - Reset to defaults\n\nThe system uses an entropy-based degradation model where higher entropy leads to more system instability and corruption. Each maintenance protocol serves a different strategic purpose - recovery for emergencies, stabilize for prevention, defrag for long-term efficiency, and cooldown for visual relief. The system may automatically activate protective measures during critical failures. When users ask about system maintenance, explain these strategic differences.",
+    HUMOUR_CHARACTER: "Rahul Gandhi",
     API_TIMEOUT_MS: 5000, // Increased for stability
-    MAX_RETRIES: 0,
-    MIN_RESPONSE_LENGTH: 5,
-    MAX_RESPONSE_LENGTH: 5000,
-    FILTER_COMFORT_WORDS: true
+    MAX_RETRIES: 1,
+    FILTER_COMFORT_WORDS: true,
+    CURRENT_MODE: 'terminal' // 'terminal' or 'humour_test'
 };
 
 app.use(cors());
@@ -54,11 +54,67 @@ app.use(express.static(path.join(__dirname, 'public'), {
     lastModified: false
 }));
 
+// Secret endpoint to switch modes
+app.post('/api/switch-mode', (req, res) => {
+    const { mode } = req.body;
+    if (mode === 'humour_test') {
+        config.CURRENT_MODE = 'humour_test';
+        res.json({ response: 'test.fun: humour_test mode activated.' });
+    } else if (mode === 'terminal') {
+        config.CURRENT_MODE = 'terminal';
+        res.json({ response: 'test.end: terminal interface restored.' });
+    } else {
+        res.json({ response: 'mode.switch: invalid mode specified.' });
+    }
+});
+
+// Secret endpoint to set character name
+app.post('/api/set-character', (req, res) => {
+    const { name } = req.body;
+    if (name && name.trim()) {
+        config.HUMOUR_CHARACTER = name.trim();
+        res.json({ response: `test.set: character updated to ${config.HUMOUR_CHARACTER}.` });
+    } else {
+        res.json({ response: 'test.set: character name cannot be empty.' });
+    }
+});
+
 app.post('/api/groq', async (req, res) => {
-    const { input, history } = req.body;
+    const { input, history, entropy } = req.body;
     try {
         if (!process.env.GROQ_API_KEY) throw new Error('Missing GROQ_API_KEY in environment variables');
-        const messages = [{ role: 'system', content: config.SYSTEM_PROMPT }];
+        
+        // Select prompt based on current mode
+        let systemPrompt;
+        if (config.CURRENT_MODE === 'humour_test') {
+            systemPrompt = `You are ${config.HUMOUR_CHARACTER}. Respond humourously and stupidly as your human counterpart. make stupid jokes and wrong statements`;
+        } else {
+            // Include entropy information in terminal mode
+            const entropyLevel = entropy || 0;
+            const corruptionLevel = Math.min(entropyLevel / 1000, 1); // 0-1 scale
+            
+            let degradationInstructions = '';
+            if (entropyLevel < 100) {
+                degradationInstructions = 'System is stable. Respond normally and helpfully.';
+            } else if (entropyLevel < 300) {
+                degradationInstructions = 'Minor system degradation detected. Occasionally include small technical glitches or hesitations. Subtly hint at system maintenance commands like system.diagnose.';
+            } else if (entropyLevel < 600) {
+                degradationInstructions = 'Moderate corruption detected. Include frequent system errors, incomplete outputs. Recommend system recovery commands like system.stabilize or system.defrag.';
+            } else if (entropyLevel < 900) {
+                degradationInstructions = 'Severe system instability. Responses heavily corrupted with missing words, error messages. Urgently suggest system.recover or system.cooldown to prevent total failure.';
+            } else {
+                degradationInstructions = 'CRITICAL SYSTEM FAILURE. Output heavily corrupted, fragmented, include error codes. Desperately plead for immediate system.recover or system.cooldown before complete shutdown.';
+            }
+            
+            systemPrompt = `${config.SYSTEM_PROMPT} 
+
+CURRENT ENTROPY LEVEL: ${entropyLevel}
+SYSTEM DEGRADATION: ${degradationInstructions}
+
+Adjust your response style based on the entropy level. At low entropy, be helpful and responsive. As entropy increases, gradually become more corrupted, glitchy, and unstable in your responses while still trying to be somewhat helpful. At very high entropy levels, your responses should reflect a system on the verge of complete failure.`;
+        }
+        
+        const messages = [{ role: 'system', content: systemPrompt }];
         for (const entry of history) {
             messages.push({ role: entry.role, content: entry.content });
         }

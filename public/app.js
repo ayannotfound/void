@@ -576,42 +576,15 @@ class VoidOS {
         
         if (fast) {
             // Fast mode: display text in chunks with minimal delay but some glitches
-            const words = text.split(' ');
-            let currentText = '';
-            for (let i = 0; i < words.length; i++) {
-                currentText += words[i] + ' ';
-                
-                // Occasional fast glitches (much less than normal mode)
-                const baseEntropy = Math.max(this.entropy, 1);
-                const fastGlitchRate = Math.min(baseEntropy / 2000, 0.1); // Much lower than normal
-                
-                if (Math.random() < fastGlitchRate) {
-                    const glitchChars = ['#', '%', '!', '?', '█', '▒'];
-                    const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
-                    textSpan.textContent = currentText + glitchChar;
-                    this.playGlitchSound('static', baseEntropy / 3000);
-                    await this.delay(30);
-                    textSpan.textContent = currentText;
-                }
-                
-                textSpan.textContent = currentText;
-                
-                // Play typing sound for fast mode (less frequent)
-                if (i % 2 === 0) { // Every other word in fast mode
-                    this.playTypingSound(words[i] || '', baseEntropy / 1000);
-                }
-                
-                if (i % 3 === 0) { // Display every 3 words
-                    await this.delay(25);
-                    this.scrollToBottom();
-                }
-            }
+            // Handle newlines properly by replacing them with HTML breaks
+            const formattedText = text.replace(/\n/g, '<br>');
+            textSpan.innerHTML = formattedText;
             responseElement.className = 'response';
             this.scrollToBottom();
             return;
         }
         
-        const lines = text.split('\n').filter(line => line.trim());
+        const lines = text.split('\n'); // Don't filter empty lines to preserve spacing
         let fullText = '';
         for (const line of lines) {
             let currentText = fullText;
@@ -638,10 +611,10 @@ class VoidOS {
                 // Wrong character glitch
                 if (Math.random() < wrongCharRate && char.match(/[a-zA-Z0-9]/)) {
                     const wrongChar = String.fromCharCode(char.charCodeAt(0) + Math.floor(Math.random() * 5));
-                    textSpan.textContent = currentText + wrongChar;
+                    textSpan.innerHTML = currentText + wrongChar;
                     this.playGlitchSound('basic', entropyFactor * 0.3);
                     await this.delay(40);
-                    textSpan.textContent = currentText;
+                    textSpan.innerHTML = currentText;
                     await this.delay(30);
                 }
                 
@@ -649,24 +622,24 @@ class VoidOS {
                 if (Math.random() < glitchCharRate) {
                     const glitchChars = ['#', '%', '$', '!', '@', '*', '?', '~', '^', '&', '░', '▒', '▓', '█', '◄', '►', '↑', '↓'];
                     const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
-                    textSpan.textContent = currentText + glitchChar;
+                    textSpan.innerHTML = currentText + glitchChar;
                     this.playGlitchSound('static', entropyFactor * 0.2);
                     await this.delay(20);
-                    textSpan.textContent = currentText;
+                    textSpan.innerHTML = currentText;
                     await this.delay(20);
                 }
                 
                 // Character deletion
                 if (Math.random() < deleteCharRate && currentText.length > 0) {
-                    textSpan.textContent = currentText.slice(0, -1);
+                    textSpan.innerHTML = currentText.slice(0, -1);
                     this.playGlitchSound('digital', entropyFactor * 0.25);
                     await this.delay(30);
-                    textSpan.textContent = currentText;
+                    textSpan.innerHTML = currentText;
                 }
                 
                 // Character duplication
                 if (Math.random() < duplicateRate && i > 3) {
-                    textSpan.textContent = currentText + char + char;
+                    textSpan.innerHTML = currentText + char + char;
                     this.playGlitchSound('basic', entropyFactor * 0.15);
                     await this.delay(25);
                 }
@@ -674,10 +647,10 @@ class VoidOS {
                 // Case flip glitch
                 if (Math.random() < caseFlipRate && char.match(/[a-zA-Z]/)) {
                     const flippedChar = char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase();
-                    textSpan.textContent = currentText + flippedChar;
+                    textSpan.innerHTML = currentText + flippedChar;
                     this.playGlitchSound('digital', entropyFactor * 0.1);
                     await this.delay(35);
-                    textSpan.textContent = currentText;
+                    textSpan.innerHTML = currentText;
                     await this.delay(15);
                 }
                 
@@ -687,10 +660,10 @@ class VoidOS {
                     const corruptText = currentText.split('').map(c => 
                         Math.random() < corruptionLevel ? ['█', '▓', '▒', '░'][Math.floor(Math.random() * 4)] : c
                     ).join('');
-                    textSpan.textContent = corruptText + char;
+                    textSpan.innerHTML = corruptText + char;
                     this.playGlitchSound('corruption', entropyFactor * 0.4);
                     await this.delay(50 + Math.random() * 100);
-                    textSpan.textContent = currentText;
+                    textSpan.innerHTML = currentText;
                     await this.delay(30);
                 }
                 
@@ -700,14 +673,14 @@ class VoidOS {
                     const chaosText = currentText.split('').map(() => 
                         chaosChars[Math.floor(Math.random() * chaosChars.length)]
                     ).join('');
-                    textSpan.textContent = chaosText;
+                    textSpan.innerHTML = chaosText;
                     this.playGlitchSound('corruption', Math.min(entropyFactor * 0.6, 1.0));
                     await this.delay(100 + Math.random() * 300);
-                    textSpan.textContent = currentText;
+                    textSpan.innerHTML = currentText;
                     await this.delay(50);
                 }
                 currentText += char;
-                textSpan.textContent = currentText;
+                textSpan.innerHTML = currentText;
                 
                 // Play typing sound for each character
                 this.playTypingSound(char, entropyFactor);
@@ -722,9 +695,9 @@ class VoidOS {
                 await this.delay(delay);
             }
             if (line !== lines[lines.length - 1]) {
-                currentText += '\n';
+                currentText += '<br>';
                 fullText = currentText;
-                textSpan.textContent = currentText;
+                textSpan.innerHTML = currentText;
                 this.scrollToBottom();
                 await this.delay(300);
             }

@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch').default; // Use .default for CommonJS
+const fetch = require('node-fetch'); // CommonJS import for v2
 const cors = require('cors');
 const compression = require('compression');
 const path = require('path');

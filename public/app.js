@@ -22,6 +22,11 @@ class VoidOS {
         this.maxEntropy = 1000;
         this.lastEntropyCheck = 0;
         
+        // Audio system for glitch effects
+        this.audioContext = null;
+        this.audioEnabled = true;
+        this.initAudioSystem();
+        
         // System maintenance states
         this.stabilizationActive = false;
         this.stabilizationEnd = 0;
@@ -46,6 +51,139 @@ class VoidOS {
         this.focusInput();
         this.startEntropyTimer();
         await this.startBootSequence();
+    }
+    
+    initAudioSystem() {
+        try {
+            // Initialize Web Audio API
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.audioEnabled = true;
+        } catch (error) {
+            console.warn('Audio context not available:', error);
+            this.audioEnabled = false;
+        }
+    }
+    
+    async resumeAudioContext() {
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            try {
+                await this.audioContext.resume();
+            } catch (error) {
+                console.warn('Could not resume audio context:', error);
+            }
+        }
+    }
+    
+    playGlitchSound(type = 'basic', intensity = 0.5) {
+        if (!this.audioEnabled || !this.audioContext || this.silenceMode) return;
+        
+        this.resumeAudioContext();
+        
+        try {
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            const filter = this.audioContext.createBiquadFilter();
+            
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            // Different glitch sound types
+            switch (type) {
+                case 'static':
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(Math.random() * 800 + 200, this.audioContext.currentTime);
+                    filter.type = 'highpass';
+                    filter.frequency.setValueAtTime(300, this.audioContext.currentTime);
+                    break;
+                case 'digital':
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(Math.random() * 400 + 100, this.audioContext.currentTime);
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(200, this.audioContext.currentTime);
+                    break;
+                case 'corruption':
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(Math.random() * 1000 + 50, this.audioContext.currentTime);
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(150, this.audioContext.currentTime);
+                    break;
+                default: // basic
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(Math.random() * 300 + 150, this.audioContext.currentTime);
+                    filter.type = 'notch';
+                    filter.frequency.setValueAtTime(250, this.audioContext.currentTime);
+            }
+            
+            // Volume based on intensity and entropy
+            const volume = Math.min(intensity * 0.15, 0.3); // Keep volume reasonable
+            gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.15);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.15);
+            
+        } catch (error) {
+            console.warn('Audio glitch failed:', error);
+        }
+    }
+    
+    playTypingSound(char = '', entropyFactor = 0) {
+        if (!this.audioEnabled || !this.audioContext || this.silenceMode) return;
+        
+        this.resumeAudioContext();
+        
+        try {
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            const filter = this.audioContext.createBiquadFilter();
+            
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            // Terminal typing sound - subtle mechanical/electronic feel
+            oscillator.type = 'square';
+            
+            // Different frequencies for different character types
+            let baseFreq = 400;
+            if (char.match(/[a-zA-Z]/)) {
+                baseFreq = 350 + (char.charCodeAt(0) % 50); // Letters
+            } else if (char.match(/[0-9]/)) {
+                baseFreq = 450 + (char.charCodeAt(0) % 30); // Numbers
+            } else if (char === ' ') {
+                baseFreq = 200; // Space - lower tone
+            } else {
+                baseFreq = 500 + (char.charCodeAt(0) % 100); // Symbols
+            }
+            
+            // Add entropy-based frequency variation
+            const entropyVariation = entropyFactor * 50;
+            const finalFreq = baseFreq + (Math.random() - 0.5) * entropyVariation;
+            
+            oscillator.frequency.setValueAtTime(finalFreq, this.audioContext.currentTime);
+            
+            // Filter for terminal-like sound
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(400, this.audioContext.currentTime);
+            filter.Q.setValueAtTime(2, this.audioContext.currentTime);
+            
+            // Volume - very subtle, entropy affects intensity
+            const baseVolume = 0.03; // Very quiet typing sound
+            const entropyBoost = Math.min(entropyFactor * 0.02, 0.05);
+            const volume = baseVolume + entropyBoost;
+            
+            gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.005);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.08);
+            
+            oscillator.start(this.audioContext.currentTime);
+            oscillator.stop(this.audioContext.currentTime + 0.08);
+            
+        } catch (error) {
+            console.warn('Typing sound failed:', error);
+        }
     }
     
     startEntropyTimer() {
@@ -133,11 +271,12 @@ class VoidOS {
         await this.initializeSystem();
         this.updatePrompt();
         await this.displayResponse('');
-        await this.displayResponse(`Welcome to void, ${this.username}.`);
-        await this.displayResponse('SURVIVAL MODE: System entropy increases over time.');
-        await this.displayResponse('Use system.diagnose to check health, system.recover for repairs.');
-        await this.displayResponse('Type "help" for commands or chat normally - but watch the entropy!');
-        await this.displayResponse('system status: critical');
+        await this.displayResponse(`session initialized: ${this.username}@void`);
+        await this.displayResponse('warning: entropy degradation active');
+        await this.displayResponse('system will decay without maintenance');
+        await this.displayResponse('type "help" for available protocols');
+        await this.displayResponse('');
+        await this.displayResponse('void terminal ready.');
         await this.displayResponse('');
     }
 
@@ -320,6 +459,18 @@ class VoidOS {
             case 'system.cooldown':
                 await this.systemCooldown();
                 return { handled: true, response: 'system.cooldown: thermal regulation completed' };
+            case 'system.hush':
+                this.playGlitchSound('digital', 0.6); // Audio feedback before muting
+                this.silenceMode = true;
+                responseText = 'system.hush: terminal muted temporarily.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
+            case 'system.restore':
+                this.silenceMode = false;
+                this.playGlitchSound('static', 0.4); // Audio feedback when restoring
+                responseText = 'system.restore: terminal sound reactivated.';
+                await this.displayResponse(responseText);
+                return { handled: true, response: responseText };
             
             // Session management
             case 'session.log':
@@ -337,16 +488,6 @@ class VoidOS {
                 return { handled: true, response: 'session.clear: log entries purged' };
             
             // AI control
-            case 'ai.silence':
-                this.silenceMode = true;
-                responseText = 'ai.silence: enabled.';
-                await this.displayResponse(responseText);
-                return { handled: true, response: responseText };
-            case 'ai.resume':
-                this.silenceMode = false;
-                responseText = 'ai.resume: enabled.';
-                await this.displayResponse(responseText);
-                return { handled: true, response: responseText };
             case 'ai.reset':
                 await this.clearConversationHistory();
                 return { handled: true, response: 'ai.reset: conversation history cleared' };
@@ -423,7 +564,7 @@ class VoidOS {
         this.scrollToBottom();
     }
 
-    async displayResponse(text) {
+    async displayResponse(text, fast = false) {
         if (!text) return;
         const responseElement = document.createElement('div');
         responseElement.className = 'response typing';
@@ -432,6 +573,44 @@ class VoidOS {
         responseElement.appendChild(textSpan);
         this.output.appendChild(responseElement);
         this.scrollToBottom();
+        
+        if (fast) {
+            // Fast mode: display text in chunks with minimal delay but some glitches
+            const words = text.split(' ');
+            let currentText = '';
+            for (let i = 0; i < words.length; i++) {
+                currentText += words[i] + ' ';
+                
+                // Occasional fast glitches (much less than normal mode)
+                const baseEntropy = Math.max(this.entropy, 1);
+                const fastGlitchRate = Math.min(baseEntropy / 2000, 0.1); // Much lower than normal
+                
+                if (Math.random() < fastGlitchRate) {
+                    const glitchChars = ['#', '%', '!', '?', '█', '▒'];
+                    const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+                    textSpan.textContent = currentText + glitchChar;
+                    this.playGlitchSound('static', baseEntropy / 3000);
+                    await this.delay(30);
+                    textSpan.textContent = currentText;
+                }
+                
+                textSpan.textContent = currentText;
+                
+                // Play typing sound for fast mode (less frequent)
+                if (i % 2 === 0) { // Every other word in fast mode
+                    this.playTypingSound(words[i] || '', baseEntropy / 1000);
+                }
+                
+                if (i % 3 === 0) { // Display every 3 words
+                    await this.delay(25);
+                    this.scrollToBottom();
+                }
+            }
+            responseElement.className = 'response';
+            this.scrollToBottom();
+            return;
+        }
+        
         const lines = text.split('\n').filter(line => line.trim());
         let fullText = '';
         for (const line of lines) {
@@ -460,6 +639,7 @@ class VoidOS {
                 if (Math.random() < wrongCharRate && char.match(/[a-zA-Z0-9]/)) {
                     const wrongChar = String.fromCharCode(char.charCodeAt(0) + Math.floor(Math.random() * 5));
                     textSpan.textContent = currentText + wrongChar;
+                    this.playGlitchSound('basic', entropyFactor * 0.3);
                     await this.delay(40);
                     textSpan.textContent = currentText;
                     await this.delay(30);
@@ -470,6 +650,7 @@ class VoidOS {
                     const glitchChars = ['#', '%', '$', '!', '@', '*', '?', '~', '^', '&', '░', '▒', '▓', '█', '◄', '►', '↑', '↓'];
                     const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
                     textSpan.textContent = currentText + glitchChar;
+                    this.playGlitchSound('static', entropyFactor * 0.2);
                     await this.delay(20);
                     textSpan.textContent = currentText;
                     await this.delay(20);
@@ -478,6 +659,7 @@ class VoidOS {
                 // Character deletion
                 if (Math.random() < deleteCharRate && currentText.length > 0) {
                     textSpan.textContent = currentText.slice(0, -1);
+                    this.playGlitchSound('digital', entropyFactor * 0.25);
                     await this.delay(30);
                     textSpan.textContent = currentText;
                 }
@@ -485,6 +667,7 @@ class VoidOS {
                 // Character duplication
                 if (Math.random() < duplicateRate && i > 3) {
                     textSpan.textContent = currentText + char + char;
+                    this.playGlitchSound('basic', entropyFactor * 0.15);
                     await this.delay(25);
                 }
                 
@@ -492,6 +675,7 @@ class VoidOS {
                 if (Math.random() < caseFlipRate && char.match(/[a-zA-Z]/)) {
                     const flippedChar = char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase();
                     textSpan.textContent = currentText + flippedChar;
+                    this.playGlitchSound('digital', entropyFactor * 0.1);
                     await this.delay(35);
                     textSpan.textContent = currentText;
                     await this.delay(15);
@@ -504,6 +688,7 @@ class VoidOS {
                         Math.random() < corruptionLevel ? ['█', '▓', '▒', '░'][Math.floor(Math.random() * 4)] : c
                     ).join('');
                     textSpan.textContent = corruptText + char;
+                    this.playGlitchSound('corruption', entropyFactor * 0.4);
                     await this.delay(50 + Math.random() * 100);
                     textSpan.textContent = currentText;
                     await this.delay(30);
@@ -516,24 +701,25 @@ class VoidOS {
                         chaosChars[Math.floor(Math.random() * chaosChars.length)]
                     ).join('');
                     textSpan.textContent = chaosText;
+                    this.playGlitchSound('corruption', Math.min(entropyFactor * 0.6, 1.0));
                     await this.delay(100 + Math.random() * 300);
                     textSpan.textContent = currentText;
                     await this.delay(50);
                 }
                 currentText += char;
                 textSpan.textContent = currentText;
+                
+                // Play typing sound for each character
+                this.playTypingSound(char, entropyFactor);
+                
                 this.scrollToBottom();
                 
                 // Trigger background chaos effects during typing
                 this.updateBackgroundChaos();
                 
-                if (['.', ',', '-', ':', ';'].includes(char)) {
-                    await this.delay(120 + Math.random() * 80);
-                } else if (char === ' ') {
-                    await this.delay(30 + Math.random() * 20);
-                } else {
-                    await this.delay(20 + Math.random() * 35);
-                }
+                // Small delay between characters
+                const delay = Math.random() * 30 + 10;
+                await this.delay(delay);
             }
             if (line !== lines[lines.length - 1]) {
                 currentText += '\n';
@@ -663,44 +849,39 @@ class VoidOS {
     }
 
     async showHelp() {
-        const helpLines = [
-            'system commands:',
-            '',
-            'sys.help, help - show this help menu',
-            'sys.status - show system status',
-            'sys.info - show system information',
-            'entropy - display current entropy level',
-            'entropy.reset - reset entropy to zero',
-            '',
-            'MAINTENANCE PROTOCOLS:',
-            'system.recover - emergency recovery (60s cooldown)',
-            'system.diagnose - run system diagnostics',
-            'system.stabilize - prevent entropy increase (45s cooldown)', 
-            'system.defrag - improve entropy efficiency (120s cooldown)',
-            'system.cooldown - reduce visual corruption (90s cooldown)',
-            '',
-            'SESSION MANAGEMENT:',
-            'session.log, log - display session log',
-            'session.hide - hide session log',
-            'session.export - download session log',
-            'session.clear - clear session log',
-            '',
-            'AI CONTROL:',
-            'ai.reset - clear conversation history',
-            '',
-            'CONFIGURATION:',
-            'config.list - show current configuration',
-            'config.user "name" - set username',
-            'config.host "name" - set hostname',
-            'config.reset - reset to defaults',
-            '',
-            'WARNING: system automatically activates protective',
-            'measures during critical failures. some functions',
-            'may become temporarily unavailable.'
-        ];
-        for (const line of helpLines) {
-            await this.displayResponse(line);
-        }
+        const helpText = `system commands:
+
+sys.help, help - show this help menu
+sys.status - show system status
+sys.info - show system information
+entropy - display current entropy level
+entropy.reset - reset entropy to zero
+
+MAINTENANCE PROTOCOLS:
+system.recover - emergency recovery (60s cooldown)
+system.diagnose - run system diagnostics
+system.stabilize - prevent entropy increase (45s cooldown)
+system.defrag - improve entropy efficiency (120s cooldown)
+system.cooldown - reduce visual corruption (90s cooldown)
+
+SESSION MANAGEMENT:
+session.log, log - display session log
+session.hide - hide session log
+session.export - download session log
+session.clear - clear session log
+
+TERMINAL CONTROL:
+ai.reset - clear conversation history
+
+CONFIGURATION:
+config.list - show current configuration
+config.user "name" - set username
+config.host "name" - set hostname
+config.reset - reset to defaults
+
+WARNING: system automatically activates protective measures during critical failures. some functions may become temporarily unavailable.`;
+        
+        await this.displayResponse(helpText, true); // Use fast mode
     }
 
     async showStatus() {
@@ -708,22 +889,19 @@ class VoidOS {
         const wrongCharRate = Math.min(0.01 + (baseEntropy / 1000), 0.8);
         const glitchLevel = Math.floor(wrongCharRate * 100);
         
-        const status = [
-            `system.status: ${this.initialized ? 'operational' : 'degraded'}`,
-            `ai.response: ${this.silenceMode ? 'compromised' : 'operational'}`,
-            `chaos.level: ${this.chaosMode ? 'maximum' : 'nominal'}`,
-            `entropy: ${this.getEntropyDisplay()}`,
-            `corruption.rate: ${glitchLevel}%`,
-            `stabilizers: ${this.stabilizationActive ? 'engaged' : 'disengaged'}`,
-            `memory.optimizer: ${this.defragActive ? 'active' : 'idle'}`,
-            `thermal.control: ${this.cooldownActive ? 'regulating' : 'normal'}`,
-            `session.entries: ${this.sessionLog.length}`,
-            `session.visible: ${this.logVisible ? 'true' : 'false'}`,
-            `user.identity: ${this.username}@${this.hostname}`
-        ];
-        for (const line of status) {
-            await this.displayResponse(line);
-        }
+        const statusText = `system.status: ${this.initialized ? 'operational' : 'degraded'}
+ai.response: ${this.silenceMode ? 'compromised' : 'operational'}
+chaos.level: ${this.chaosMode ? 'maximum' : 'nominal'}
+entropy: ${this.getEntropyDisplay()}
+corruption.rate: ${glitchLevel}%
+stabilizers: ${this.stabilizationActive ? 'engaged' : 'disengaged'}
+memory.optimizer: ${this.defragActive ? 'active' : 'idle'}
+thermal.control: ${this.cooldownActive ? 'regulating' : 'normal'}
+session.entries: ${this.sessionLog.length}
+session.visible: ${this.logVisible ? 'true' : 'false'}
+user.identity: ${this.username}@${this.hostname}`;
+        
+        await this.displayResponse(statusText, true); // Use fast mode
     }
 
     async showSystemInfo() {
@@ -734,33 +912,26 @@ class VoidOS {
         else if (entropyLevel >= 300) degradationStatus = 'moderate_corruption';
         else if (entropyLevel >= 100) degradationStatus = 'minor_degradation';
         
-        const info = [
-            'void terminal v1.0-b [SURVIVAL MODE]',
-            'powered by groq llama-3.1-8b-instant',
-            'entropy-aware command processor',
-            `uptime: ${Math.floor((Date.now() - this.startTime) / 1000)}s`,
-            `entropy.level: ${this.getEntropyDisplay()}`,
-            `degradation.status: ${degradationStatus}`,
-            'ai.awareness: entropy_synchronized',
-            'status: decaying as intended'
-        ];
-        for (const line of info) {
-            await this.displayResponse(line);
-        }
+        const infoText = `void terminal v1.0-b
+entropy-aware command processor
+uptime: ${Math.floor((Date.now() - this.startTime) / 1000)}s
+entropy.level: ${this.getEntropyDisplay()}
+degradation.status: ${degradationStatus}
+ai.awareness: entropy_synchronized
+status: decaying`;
+        
+        await this.displayResponse(infoText, true); // Use fast mode
     }
 
     async showConfig() {
-        const config = [
-            'current configuration:',
-            `config.user: ${this.username}`,
-            `config.host: ${this.hostname}`,
-            `config.silence: ${this.silenceMode}`,
-            `config.log_visible: ${this.logVisible}`,
-            `config.session_count: ${this.sessionLog.length}`
-        ];
-        for (const line of config) {
-            await this.displayResponse(line);
-        }
+        const configText = `current configuration:
+config.user: ${this.username}
+config.host: ${this.hostname}
+config.silence: ${this.silenceMode}
+config.log_visible: ${this.logVisible}
+config.session_count: ${this.sessionLog.length}`;
+        
+        await this.displayResponse(configText, true); // Use fast mode
     }
 
     async resetConfig() {
@@ -924,6 +1095,7 @@ class VoidOS {
                 if (Math.random() < 0.3) {
                     // Screen flash
                     body.style.background = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                    this.playGlitchSound('corruption', 0.8);
                     setTimeout(() => {
                         body.style.background = '#000000';
                     }, 100 + Math.random() * 200);
@@ -932,6 +1104,7 @@ class VoidOS {
                 if (Math.random() < 0.2) {
                     // Terminal glitch
                     terminal.style.filter = `hue-rotate(${Math.random() * 360}deg) saturate(${1 + Math.random() * 3})`;
+                    this.playGlitchSound('static', 0.6);
                     setTimeout(() => {
                         terminal.style.filter = 'none';
                     }, 50 + Math.random() * 300);
@@ -940,6 +1113,7 @@ class VoidOS {
                 if (Math.random() < 0.1) {
                     // Text corruption
                     terminal.style.textShadow = `${Math.random() * 10 - 5}px ${Math.random() * 10 - 5}px ${Math.random() * 20}px #ff0000`;
+                    this.playGlitchSound('digital', 0.4);
                     setTimeout(() => {
                         terminal.style.textShadow = 'none';
                     }, 200 + Math.random() * 500);
@@ -948,6 +1122,7 @@ class VoidOS {
                 // Subtle entropy effects
                 if (Math.random() < corruptionLevel * 0.1) {
                     body.style.background = `#${Math.floor(Math.random() * 0x111111).toString(16).padStart(6, '0')}`;
+                    this.playGlitchSound('basic', corruptionLevel * 0.3);
                     setTimeout(() => {
                         body.style.background = '#000000';
                     }, 50);
@@ -964,6 +1139,7 @@ class VoidOS {
     async systemRecover() {
         if (this.lastRecover && (Date.now() - this.lastRecover) < 60000) {
             const remaining = Math.ceil((60000 - (Date.now() - this.lastRecover)) / 1000);
+            this.playGlitchSound('digital', 0.3);
             await this.displayResponse(`system.recover: emergency protocol on cooldown (${remaining}s remaining).`);
             return;
         }
@@ -985,6 +1161,7 @@ class VoidOS {
         // Always disable chaos mode on emergency recovery
         if (this.chaosMode) {
             this.chaosMode = false;
+            this.playGlitchSound('static', 0.5); // Recovery sound
             await this.displayResponse('system.recover: chaos mode forcibly disabled.');
         }
         
